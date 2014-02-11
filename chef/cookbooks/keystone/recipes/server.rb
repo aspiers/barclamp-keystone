@@ -63,19 +63,31 @@ else
   end
 end
 
+ha_enabled = node[:pacemaker][:primitives][:keystone][:enabled] rescue false
+
 # Ideally this would be called bind_host, not admin_host; the latter
 # is ambiguous.
 bind_host = node[:keystone][:api][:admin_host]
 
+service_name  = node[:keystone][:config][:environment]
+public_vhost  = "public.#{service_name}.#{node[:domain]}"
+admin_vhost   = "admin.#{service_name}.#{node[:domain]}"
+# If we needed the VIP addresses, this is how we'd get them:
+#
+# public_net_db = data_bag_item('crowbar', 'public_network')
+# admin_net_db  = data_bag_item('crowbar', 'admin_network')
+# public_ip     = public_net_db["allocated_by_name"][public_vhost]["address"]
+# admin_ip      = admin_net_db ["allocated_by_name"][admin_vhost]["address"]
+
 # Ideally this would be called admin_host, but that's already being
 # misleadingly used to store a value which actually represents the
 # service bind address.
-my_admin_host = node[:fqdn]
+my_admin_host = ha_enabled ? admin_vhost : node[:fqdn]
 
 # For the public endpoint, we prefer the public name. If not set, then we
 # use the IP address except for SSL, where we always prefer a hostname
 # (for certificate validation).
-my_public_host = node[:crowbar][:public_name]
+my_public_host = ha_enabled ? public_vhost : node[:crowbar][:public_name]
 if my_public_host.nil? or my_public_host.empty?
   if node[:keystone][:api][:protocol] == "https"
     my_public_host = 'public.'+node[:fqdn]
@@ -232,10 +244,6 @@ db_provider = Chef::Recipe::Database::Util.get_database_provider(sql)
 db_user_provider = Chef::Recipe::Database::Util.get_user_provider(sql)
 privs = Chef::Recipe::Database::Util.get_default_priviledges(sql)
 url_scheme = backend_name
-
-::Chef::Recipe.send(:include, Opscode::OpenSSL::Password)
-node.set_unless['keystone']['db']['password'] = secure_password
-
 
 sql_address = Chef::Recipe::Barclamp::Inventory.get_network_by_type(sql, "admin").address if sql_address.nil?
 Chef::Log.info("Database server found at #{sql_address}")
@@ -414,8 +422,15 @@ if node[:keystone][:frontend] == 'native'
   service "keystone" do
     service_name node[:keystone][:service_name]
     supports :status => true, :start => true, :restart => true
-    action [ :enable, :start ]
+    action ha_enabled ? :disable : [ :enable, :start ]
     subscribes :restart, resources(:template => "/etc/keystone/keystone.conf")
+  end
+
+  if ha_enabled
+    log "keystone will be managed by pacemaker"
+    include_recipe "keystone::pacemaker"
+  else
+    log "keystone will not be managed by pacemaker"
   end
 end
 

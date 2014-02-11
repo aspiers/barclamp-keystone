@@ -50,16 +50,21 @@ class KeystoneService < ServiceObject
     end
 
 
-    base[:attributes][:keystone][:service][:token] = '%012d' % rand(1e12)
+    base["attributes"][@bc_name][:service][:token] = '%012d' % rand(1e12)
+    base["attributes"][@bc_name][:db][:password]   = random_password
 
     base
   end
 
   def validate_proposal_after_save proposal
-    validate_one_for_role proposal, "keystone-server"
+    validate_at_least_n_for_role proposal, "keystone-server", 1
 
     if proposal["attributes"][@bc_name]["use_gitrepo"]
       validate_dep_proposal_is_active "git", proposal["attributes"][@bc_name]["git_instance"]
+    end
+
+    unless proposal["attributes"][@bc_name][:db][:password]
+      validation_error "Password for DB keystone user missing"
     end
 
     super
@@ -67,13 +72,23 @@ class KeystoneService < ServiceObject
 
   def apply_role_pre_chef_call(old_role, role, all_nodes)
     @logger.debug("Keystone apply_role_pre_chef_call: entering #{all_nodes.inspect}")
-    return if all_nodes.empty?
 
-    net_svc = NetworkService.new @logger
-    tnodes = role.override_attributes["keystone"]["elements"]["keystone-server"]
-    tnodes.each do |n|
-      net_svc.allocate_ip "default", "public", "host", n
-    end unless tnodes.nil?
+    unless all_nodes.empty?
+      tnodes = role.override_attributes["keystone"]["elements"]["keystone-server"]
+      unless tnodes.nil?
+        net_svc = NetworkService.new @logger
+        tnodes.each do |n|
+          net_svc.allocate_ip "default", "public", "host", n
+        end
+
+        # Virtual floating IPs
+        n = NodeObject.find_node_by_name tnodes.first
+        service_name = role.name
+        domain = n[:domain]
+        net_svc.allocate_virtual_ip "default", "admin",  "host", "#{service_name}.#{domain}"
+        net_svc.allocate_virtual_ip "default", "public", "host", "#{service_name}.#{domain}"
+      end
+    end
 
     @logger.debug("Keystone apply_role_pre_chef_call: leaving")
   end

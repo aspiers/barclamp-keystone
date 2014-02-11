@@ -142,3 +142,12 @@ default[:keystone][:ldap][:group_allow_delete] = true
 # default[:keystone][:ldap][:domain_allow_delete] = true
 # default[:keystone][:ldap][:domain_enabled_emulation] = false
 # default[:keystone][:ldap][:domain_enabled_emulation_dn] = ""
+
+# This might let us figure out which services to expose toggles for in the
+# Pacemaker barclamp UI.
+default[:pacemaker][:supported_services][:keystone] = true
+
+default[:pacemaker][:primitives][:keystone][:enabled] = true
+default[:pacemaker][:primitives][:keystone][:agent] = "ocf:openstack:keystone"
+default[:pacemaker][:primitives][:keystone][:op] = Mash.new
+default[:pacemaker][:primitives][:keystone][:op][:monitor][:interval] = "10s"
