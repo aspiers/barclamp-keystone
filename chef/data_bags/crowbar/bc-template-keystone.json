@@ -40,7 +40,7 @@
         "service_port": 5000,
         "api_host": "0.0.0.0",
         "admin_port": 35357,
-        "admin_host": "0.0.0.0"
+        "bind_host": "0.0.0.0"
       },
       "admin": {
         "tenant": "admin",

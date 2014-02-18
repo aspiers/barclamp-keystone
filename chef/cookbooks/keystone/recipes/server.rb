@@ -65,9 +65,7 @@ end
 
 ha_enabled = node[:pacemaker][:primitives][:keystone][:enabled] rescue false
 
-# Ideally this would be called bind_host, not admin_host; the latter
-# is ambiguous.
-bind_host = node[:keystone][:api][:admin_host]
+bind_host = node[:keystone][:api][:bind_host]
 
 service_name  = node[:keystone][:config][:environment]
 public_vhost  = "public.#{service_name}.#{node[:domain]}"
@@ -79,9 +77,7 @@ admin_vhost   = "admin.#{service_name}.#{node[:domain]}"
 # public_ip     = public_net_db["allocated_by_name"][public_vhost]["address"]
 # admin_ip      = admin_net_db ["allocated_by_name"][admin_vhost]["address"]
 
-# Ideally this would be called admin_host, but that's already being
-# misleadingly used to store a value which actually represents the
-# service bind address.
+# Ideally this would be called admin_host.
 my_admin_host = ha_enabled ? admin_vhost : node[:fqdn]
 
 # For the public endpoint, we prefer the public name. If not set, then we

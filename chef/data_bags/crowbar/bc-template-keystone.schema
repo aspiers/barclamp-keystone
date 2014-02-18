@@ -41,7 +41,7 @@
                       "service_port": { "type" : "int", "required" : true },
                       "admin_port": { "type" : "int", "required" : true },
                       "api_host": { "type" : "str", "required" : true },
-                      "admin_host": { "type" : "str", "required" : true }
+                      "bind_host": { "type" : "str", "required" : true }
                     }},
                     "admin": { "type": "map", "required": true, "mapping": {
                       "tenant": { "type" : "str", "required" : true },
