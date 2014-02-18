@@ -77,8 +77,7 @@ admin_vhost   = "admin.#{service_name}.#{node[:domain]}"
 # public_ip     = public_net_db["allocated_by_name"][public_vhost]["address"]
 # admin_ip      = admin_net_db ["allocated_by_name"][admin_vhost]["address"]
 
-# Ideally this would be called admin_host.
-my_admin_host = ha_enabled ? admin_vhost : node[:fqdn]
+node[:keystone][:api][:admin_host] = ha_enabled ? admin_vhost : node[:fqdn]
 
 # For the public endpoint, we prefer the public name. If not set, then we
 # use the IP address except for SSL, where we always prefer a hostname
@@ -91,24 +90,25 @@ if my_public_host.nil? or my_public_host.empty?
     my_public_host = Chef::Recipe::Barclamp::Inventory.get_network_by_type(node, "public").address
   end
 end
+node[:keystone][:api][:public_host] = my_public_host
 
 # These are used in keystone.conf
 node[:keystone][:api][:public_URL] = \
-  KeystoneHelper.service_URL(node, my_public_host,
+  KeystoneHelper.service_URL(node, node[:keystone][:api][:public_host],
                              node[:keystone][:api][:service_port])
 node[:keystone][:api][:admin_URL] = \
-  KeystoneHelper.service_URL(node, my_admin_host,
+  KeystoneHelper.service_URL(node, node[:keystone][:api][:admin_host],
                              node[:keystone][:api][:admin_port])
 
 # These URLs will be registered as endpoints in keystone's database
 node[:keystone][:api][:versioned_public_URL] = \
-  KeystoneHelper.versioned_service_URL(node, my_public_host,
+  KeystoneHelper.versioned_service_URL(node, node[:keystone][:api][:public_host],
                                        node[:keystone][:api][:service_port])
 node[:keystone][:api][:versioned_admin_URL] = \
-  KeystoneHelper.versioned_service_URL(node, my_admin_host,
+  KeystoneHelper.versioned_service_URL(node, node[:keystone][:api][:admin_host],
                                        node[:keystone][:api][:admin_port])
 node[:keystone][:api][:versioned_internal_URL] = \
-  KeystoneHelper.versioned_service_URL(node, my_admin_host,
+  KeystoneHelper.versioned_service_URL(node, node[:keystone][:api][:admin_host],
                                        node[:keystone][:api][:service_port])
 
 if node[:keystone][:frontend] == 'uwsgi'
@@ -288,9 +288,9 @@ template "/etc/keystone/keystone.conf" do
       :verbose => node[:keystone][:verbose],
       :admin_token => node[:keystone][:service][:token],
       :bind_host => bind_host,
-      :admin_api_host => my_admin_host,
+      :admin_api_host => node[:keystone][:api][:admin_host],
       :admin_api_port => node[:keystone][:api][:admin_port],
-      :api_host => my_public_host,
+      :api_host => node[:keystone][:api][:public_host],
       :service_port => node[:keystone][:api][:service_port],
       :public_endpoint => node[:keystone][:api][:public_URL],
       :admin_endpoint => node[:keystone][:api][:admin_URL],
@@ -434,7 +434,7 @@ end
 # just (re)started, and might not answer on the first try
 keystone_register "wakeup keystone" do
   protocol node[:keystone][:api][:protocol]
-  host my_admin_host
+  host node[:keystone][:api][:admin_host]
   port node[:keystone][:api][:admin_port]
   token node[:keystone][:service][:token]
   retries 5
@@ -449,7 +449,7 @@ end
 ].each do |tenant|
   keystone_register "add default #{tenant} tenant" do
     protocol node[:keystone][:api][:protocol]
-    host my_admin_host
+    host node[:keystone][:api][:admin_host]
     port node[:keystone][:api][:admin_port]
     token node[:keystone][:service][:token]
     tenant_name tenant
@@ -463,7 +463,7 @@ end
 ].each do |user_data|
   keystone_register "add default #{user_data[0]} user" do
     protocol node[:keystone][:api][:protocol]
-    host my_admin_host
+    host node[:keystone][:api][:admin_host]
     port node[:keystone][:api][:admin_port]
     token node[:keystone][:service][:token]
     user_name user_data[0]
@@ -480,7 +480,7 @@ roles = %w[admin Member]
 roles.each do |role|
   keystone_register "add default #{role} role" do
     protocol node[:keystone][:api][:protocol]
-    host my_admin_host
+    host node[:keystone][:api][:admin_host]
     port node[:keystone][:api][:admin_port]
     token node[:keystone][:service][:token]
     role_name role
@@ -497,7 +497,7 @@ user_roles = [
 user_roles.each do |args|
   keystone_register "add default #{args[2]}:#{args[0]} -> #{args[1]} role" do
     protocol node[:keystone][:api][:protocol]
-    host my_admin_host
+    host node[:keystone][:api][:admin_host]
     port node[:keystone][:api][:admin_port]
     token node[:keystone][:service][:token]
     user_name args[0]
@@ -517,7 +517,7 @@ ec2_creds = [
 ec2_creds.each do |args|
   keystone_register "add default ec2 creds for #{args[1]}:#{args[0]}" do
     protocol node[:keystone][:api][:protocol]
-    host my_admin_host
+    host node[:keystone][:api][:admin_host]
     auth ({
         :tenant => node[:keystone][:admin][:tenant],
         :user => node[:keystone][:admin][:username],
@@ -533,7 +533,7 @@ end
 # Create keystone service
 keystone_register "register keystone service" do
   protocol node[:keystone][:api][:protocol]
-  host my_admin_host
+  host node[:keystone][:api][:admin_host]
   port node[:keystone][:api][:admin_port]
   token node[:keystone][:service][:token]
   service_name "keystone"
@@ -545,7 +545,7 @@ end
 # Create keystone endpoint
 keystone_register "register keystone endpoint" do
   protocol node[:keystone][:api][:protocol]
-  host my_admin_host
+  host node[:keystone][:api][:admin_host]
   port node[:keystone][:api][:admin_port]
   token node[:keystone][:service][:token]
   endpoint_service "keystone"
